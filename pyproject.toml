@@ -1,0 +1,16 @@
+[build-system]
+requires = ["scikit-build-core", "cmake", "ninja"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "ninteg"
+version = "0.1.0"
+description = "Numerical INTEGration using the BDF and Anderson methods"
+readme = "README.md"
+authors = [{name = "Alexey Cherezov", email = "alexey.cherezov@psi.ch"}]
+license = {text = "MIT"}
+dependencies = ["numpy"]
+requires-python = ">=3.8"
+
+[tool.scikit-build]
+wheel.packages = ["ninteg","examples"]
