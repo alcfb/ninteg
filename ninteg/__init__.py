@@ -122,3 +122,18 @@ class IVP:
         b = ptr2array (n, pb)
         x = ptr2array (n, px)
         self.dynamics (h, t, b, x, e)
+
+def integrate (time, x0, dynamics, tol=1.E-6, h0=1.E-6, method='anderson', hmin=1.E-10, hmax=1.E+10, qmax=5):
+
+    t0, t1 = time
+
+    ivp = IVP()
+
+    ivp.setup (t0, x0, dynamics)
+
+    solution = ivp.solve (t1, tol=1.E-6, h=1.E-6, method='anderson', hmin=1.E-10, hmax=1.E+10, qmax=5)
+
+    for t, x in solution:
+        yield t, x, ivp.info
+
+    ivp.close()
