@@ -1,25 +1,10 @@
 # NINTEG – Numerical Integration of Stiff ODEs
 
-**NINTEG** is used to integrate stiff systems of Ordinary Differential Equations (ODEs) using Backward Differentiation Formula (BDF).
-The key feature is that it allows users to provide their own solver instead of a Jacobian matrix, giving more control over the integration process.
-
-## Features
-
-- **Stiff ODEs**  
-  Stable and efficient integration for stiff systems, dx/dt=f(t,x), using BDF method in Nordsieck formulation.
-  Automatically adjusts both step size and method order according to the LSODE algorithm.
-
-- **Custom In-Step Solver**  
-  Users supply their own solver for solution of in-step system: x - h f(t,x) = b,
-  where x is the solution vector, t is the time, h is the step-size and b is the source vector.
-
-- **Built-in Anderson Method**  
-  The non-linear in-step equation is iterated using the Anderson method.
-  Thus, only a linear part of the equation can be solved by the user, while
-  the code handles nonlinear part iteratively.
+## Description
+A stiff system of ODEs, `dx/dt=f(t,x)`, is integrated step-by-step by Backward Differentiation Formula (BDF) in Nordsieck formulation, with automatic step size and order selection. According to this method, a non-linear system of algebraic equations, `x - h f(t,x) = b`, must be solved for every time step, where `x` is the unknown vector, `t` is the time, `h` is the step-size, and `b` is the source vector. The key feature of the code is that it allows users to provide their own in-step solver instead of a Jacobian matrix, giving more control over the integration process. Alternatively, only a linear part of this equation can be resolved, leaving the code to handle a nonlinear part iteratively using the Anderson method.
 
 ## Usage
-Solve dx / dt = a x on time interval 0 < t < 1 for initial value x(0) = 1 and parameter a = -1.5,
+Solve `dx/dt = a x` on time interval `0 < t < 1` for initial value `x(0) = 1` and parameter `a = -1.5`,
 
 ```python
 from ninteg import integrate
@@ -27,7 +12,8 @@ from ninteg import integrate
 # Define problem
 time, x0, a = (0, 1), [1], -1.5
 
-# Solve x - h * f (t,x) = b with tolerance e
+# Solve x - h * f (t,x) = b
+# given step size h, time t and tolerance e
 def dynamics (h, t, b, x, e):
     x [:] = b [:] / (1 - a * h)
 
