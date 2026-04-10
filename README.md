@@ -18,10 +18,25 @@ The key feature is that it allows users to provide their own solver instead of a
   Thus, only a linear part of the equation can be solved by the user, while
   the code handles nonlinear part automatically.
 
-## Tech Stack
+## Usage
+Solve dx/dt = a x, a = -1.5, x(0) = 1, 0 < t < 1
 
-- **Core:** Fortran  
-- **Interface:** Python (wrapper)
+```
+from ninteg import integrate
+
+# Define problem
+time, x0, a = (0, 1), [1], -1.5
+
+# Solve x - h * f (t,x) = b with tolerance e
+def dynamics (h, t, b, x, e):
+    x [:] = b [:] / (1 - a * h)
+
+solution = integrate (time, x0, dynamics)
+
+# Print solution
+for t, x, info in solution:
+    print (t, x)
+```
 
 ## Installation
 
@@ -30,6 +45,12 @@ git clone https://github.com/alcfb/ninteg.git
 cd ninteg
 pip install .
 ```
+
+## Tech Stack
+
+- **Core:** Fortran  
+- **Interface:** Python (wrapper)
+
 
 ## Reference
 
