@@ -1,6 +1,6 @@
-# NINTEG – Numerical Integrator for Stiff ODEs
+# NINTEG – Numerical Integration of Stiff ODEs
 
-**NINTEG** is to integrate stiff systems of ordinary differential equations (ODEs) using Backward Differentiation Formula (BDF).
+**NINTEG** is used to integrate stiff systems of Ordinary Differential Equations (ODEs) using Backward Differentiation Formula (BDF).
 The key feature is that it allows users to provide their own solver instead of a Jacobian matrix, giving more control over the integration process.
 
 ## Features
@@ -16,12 +16,12 @@ The key feature is that it allows users to provide their own solver instead of a
 - **Built-in Anderson Method**  
   The non-linear in-step equation is iterated using the Anderson method.
   Thus, only a linear part of the equation can be solved by the user, while
-  the code handles nonlinear part automatically.
+  the code handles nonlinear part iteratively.
 
 ## Usage
-Solve dx/dt = a x, a = -1.5, x(0) = 1, 0 < t < 1
+Solve dx / dt = a x on time interval 0 < t < 1 for initial value x(0) = 1 and parameter a = -1.5,
 
-```
+```python
 from ninteg import integrate
 
 # Define problem
@@ -31,10 +31,8 @@ time, x0, a = (0, 1), [1], -1.5
 def dynamics (h, t, b, x, e):
     x [:] = b [:] / (1 - a * h)
 
-solution = integrate (time, x0, dynamics)
-
-# Print solution
-for t, x, info in solution:
+# Integrate
+for t, x, info in integrate (time, x0, dynamics):
     print (t, x)
 ```
 
@@ -46,11 +44,10 @@ cd ninteg
 pip install .
 ```
 
-## Tech Stack
+## Troubleshooting
 
-- **Core:** Fortran  
-- **Interface:** Python (wrapper)
-
+- Error "too many trials at one time step": the in-step equation does not converge properly; improve the custom solver, and try smaller initial step size.
+- Slow integration with a small step size: if the problem is nonlinear, convergence depends on the fixed-point iteration; try improving the quality of the custom solver in 'dynamics'.
 
 ## Reference
 
