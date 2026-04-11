@@ -41,7 +41,7 @@ for t, x, info in integrate (time, x0, dynamics):
     --------------------
     time : (t0, t1)
         Time interval.
-    x0 : array-like
+    x0 : array-like, shape `(n,)`
         Initial vector.
     dynamics : callable
         Function implementing implicit step.
@@ -55,6 +55,14 @@ for t, x, info in integrate (time, x0, dynamics):
         Step size bounds, default from 1.E-10 to 1.E+10.
     qmax : int, optional
         Maximum method order, default 5.
+    --------------------
+    Results:
+    t : float
+        current time.
+    x : array-like, shape `(n,)`
+        State vector.
+    info : Info
+        Solver diagnostics container.
     """
     print (t, x)
 ```
@@ -76,7 +84,9 @@ pip install .
 **Fix:**
 - Increase relative tolerance `rtol`
 - Start with a smaller initial step size `h0`
-- Improve formulation of the in-step function `dynamics` (most often)
+- Improve convergence of in-step function `dynamics` (most often)
+- Ensure that `f(t,x)` is a continuous function
+- Apply preconditioning procedures
 
 ## Reference
 
