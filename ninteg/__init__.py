@@ -4,136 +4,131 @@ import numpy
 import ctypes
 import pathlib
 
-c_char_p   = ctypes.c_char_p
 c_double   = ctypes.c_double
 c_int      = ctypes.c_int
-c_short    = ctypes.c_short
-c_long     = ctypes.c_long
 c_void_p   = ctypes.c_void_p
-p_c_int    = ctypes.POINTER(ctypes.c_int)
-p_c_double = ctypes.POINTER(ctypes.c_double)
-p_c_char   = ctypes.POINTER(ctypes.c_char)
+c_int_p    = ctypes.POINTER(ctypes.c_int)
+c_double_p = ctypes.POINTER(ctypes.c_double)
+c_function = ctypes.CFUNCTYPE(None, c_int_p, c_double_p, c_double_p, c_void_p, c_void_p, c_double_p)
 
-def ptr2value (ptr):
-    return numpy.ctypeslib.as_array(ptr, shape=(1,))[0]
-
-def ptr2array (n, pointer_index, dtype=c_double):
-    pointer_to_array = ctypes.cast (pointer_index, ctypes.POINTER(dtype))
-    values = numpy.ctypeslib.as_array (pointer_to_array, shape=(n,))
-    return values
+def as_array(ptr, n):
+    return numpy.ctypeslib.as_array(ptr, shape=(n,))
 
 lib_path = next(pathlib.Path(__file__).parent.glob("libninteg.*"))
 lib = ctypes.CDLL(str(lib_path))
 
 class Info:
+
+    labels = [
+        'total_iterations', 'successful_steps', 'rejected_iterations',
+        'rejected_steps', 'step_attempts', 'function_calls',
+        'previous_order', 'suggested_order', 'time',
+        'last_step_size', 'suggested_step_size', 'relative_error',
+        'dummy13', 'dummy14', 'dummy15'
+    ]
+
     def __init__(self):
-        self.output = numpy.zeros (15, dtype='float64')
-        self.values = []
-        self.labels = ['total_iterations', 'successful_steps', 'rejected_iterations', 'rejected_steps', 'step_attempts', 'function_calls', 'previous_order','suggested_order', 'time', 'last_step_size', 'suggested_step_size', 'relative_error']
-    def update (self):
-        self.values.append (copy.copy(self.output))
-    def __call__ (self):
-        for label, value in zip(self.labels, self.values[-1]):
-            print (f"{label:20s}{value:12.6f}")
+        self.data = numpy.zeros(len(self.labels), dtype=numpy.float64)
+        self._index = {k: i for i, k in enumerate(self.labels)}
+
+    def __getattr__(self, name):
+        try:
+            return self.data[self._index[name]]
+        except KeyError:
+            raise AttributeError(name)
 
 class IVP:
-    def __init__(self):
 
-        self.info = Info()
+    def __init__(self, x):
+
+        self.x = numpy.ascontiguousarray(x, dtype=numpy.float64)
+
         self.lib = lib
+        self.info = Info()
 
-    def setup (self, t0, x0, dynamics):
-
-        self.t0 = t0
-        self.x = numpy.array (x0, dtype='float64')
-        self.dynamics = dynamics
-
-        self.lib.make.argtypes = [p_c_int]
+        self.lib.make.argtypes = [c_int_p]
         self.lib.make (ctypes.byref (c_int (self.x.size)))
 
-        self.p_solv = ctypes.CFUNCTYPE (None, p_c_int, p_c_double, p_c_double, c_void_p, c_void_p, p_c_double)(self._solv)
+        self._callback = c_function (self._solv)
 
-        self.lib.init_solv (ctypes.byref (self.p_solv))
+        self.lib.init_solv (ctypes.byref (self._callback))
 
-        self.lib.init_t0.argtypes = [p_c_double]
-        self.lib.init_t1.argtypes = [p_c_double]
-        self.lib.init_h0.argtypes = [p_c_double]
-        self.lib.init_rtol.argtypes = [p_c_double]
-        self.lib.init_atol.argtypes = [p_c_double]
-        self.lib.init_im.argtypes = [p_c_int]
-        self.lib.init_q_max.argtypes = [p_c_int]
-        self.lib.init_h_min.argtypes = [p_c_double]
-        self.lib.init_h_max.argtypes = [p_c_double]
+        self.lib.init_t0.argtypes = [c_double_p]
+        self.lib.init_t1.argtypes = [c_double_p]
+        self.lib.init_h0.argtypes = [c_double_p]
+        self.lib.init_rtol.argtypes = [c_double_p]
+        self.lib.init_atol.argtypes = [c_double_p]
+        self.lib.init_q_max.argtypes = [c_int_p]
+        self.lib.init_h_min.argtypes = [c_double_p]
+        self.lib.init_h_max.argtypes = [c_double_p]
 
         self.lib.ivp_init.argtypes = []
-        self.lib.ivp_next.argtypes = [p_c_int]
+        self.lib.ivp_next.argtypes = [c_int_p]
 
-        self.lib.get_t.argtypes = [p_c_double]
-        self.lib.get_x.argtypes = [p_c_int, c_void_p]
+        self.lib.get_t.argtypes = [c_double_p]
+        self.lib.get_x.argtypes = [c_int_p, c_void_p]
         self.lib.get_info.argtypes = [c_void_p]
 
+        self.lib.init_x0.argtypes = [c_int_p, c_void_p]
 
-    def solve (self, t=1, tol=1.E-6, h=1.E-6, method='anderson', hmin=1.E-10, hmax=1.E+10, qmax=5):
+        self.t = c_double()
+        self.t_ref = ctypes.byref (self.t)
 
-        imethod = {'picard':12, 'anderson':13}[method]
+        self.istatus = c_int()
+        self.istatus_ref = ctypes.byref (self.istatus)
+
+    def _solv (self, pn, ph, pt, pb, px, pe):
+
+        n = pn[0]
+        t = pt[0]
+        h = ph[0]
+        e = pe[0]
+
+        b = as_array (ctypes.cast(pb, c_double_p), n)
+        x = as_array (ctypes.cast(px, c_double_p), n)
+
+        self.solv (h, t, b, x, e)
+
+
+    def solve (self, time, solv, rtol, atol, h0, hmin, hmax, qmax):
+
+        self.solv = solv
 
         self.lib.ivp_init ()
 
-        self.lib.init_rtol (ctypes.byref (c_double (tol)))
-        self.lib.init_h0 (ctypes.byref (c_double (h)))
-        self.lib.init_t0 (ctypes.byref (c_double (self.t0)))
-        self.lib.init_t1 (ctypes.byref (c_double (t)))
-        self.lib.init_im (ctypes.byref (c_int (imethod)))
+        self.lib.init_x0 (ctypes.byref (c_int (self.x.size)), self.x.ctypes)
+        self.lib.init_rtol (ctypes.byref (c_double (rtol)))
+        self.lib.init_atol (ctypes.byref (c_double (atol)))
+        self.lib.init_h0 (ctypes.byref (c_double (h0)))
+        self.lib.init_t0 (ctypes.byref (c_double (time[0])))
+        self.lib.init_t1 (ctypes.byref (c_double (time[1])))
         self.lib.init_q_max (ctypes.byref (c_int (qmax)))
         self.lib.init_h_min (ctypes.byref (c_double (hmin)))
         self.lib.init_h_max (ctypes.byref (c_double (hmax)))
 
-        self.lib.init_x0.argtypes = [p_c_int, c_void_p]
-        self.lib.init_x0 (ctypes.byref (c_int (self.x.size)), self.x.ctypes)
-
-        time = c_double()
-
-        istatus = c_int ()
-
         while True:
 
-            self.lib.ivp_next (ctypes.byref (istatus))
-            self.lib.get_info (self.info.output.ctypes)
+            self.lib.ivp_next (self.istatus_ref)
+            self.lib.get_info (self.info.data.ctypes)
             self.lib.get_x (c_int (self.x.size), self.x.ctypes)
-            self.lib.get_t (ctypes.byref (time))
+            self.lib.get_t (self.t_ref)
 
-            self.info.update ()
+            yield self.t.value, self.x, self.info
 
-            yield time.value, self.x
-
-            if istatus.value == 3: break
-
-    def __del__(self):
-        if hasattr(self, 'lib'): self.lib.clean()
+            if self.istatus.value == 3: break
 
     def close(self):
         self.lib.clean()
 
-    def _solv (self, pn, ph, pt, pb, px, pe):
-        n = ptr2value (pn)
-        t = ptr2value (pt)
-        h = ptr2value (ph)
-        e = ptr2value (pe)
-        b = ptr2array (n, pb)
-        x = ptr2array (n, px)
-        self.dynamics (h, t, b, x, e)
 
-def integrate (time, x0, dynamics, tol=1.E-6, h0=1.E-6, method='anderson', hmin=1.E-10, hmax=1.E+10, qmax=5):
 
-    t0, t1 = time
 
-    ivp = IVP()
+def integrate (time, x0, solv, rtol=1.E-6, atol=1.E-10, h0=1.E-6, hmin=1.E-10, hmax=1.E+10, qmax=5):
 
-    ivp.setup (t0, x0, dynamics)
+    ivp = IVP (x0)
 
-    solution = ivp.solve (t1, tol=1.E-6, h=1.E-6, method='anderson', hmin=1.E-10, hmax=1.E+10, qmax=5)
+    solution = ivp.solve (time, solv, rtol, atol, h0, hmin, hmax, qmax)
 
-    for t, x in solution:
-        yield t, x, ivp.info
+    yield from solution
 
     ivp.close()
