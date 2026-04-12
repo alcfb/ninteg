@@ -13,6 +13,8 @@ module m_bdf
         procedure :: make => p_make
         procedure :: next => p_next
         procedure :: free => p_free
+        procedure :: interpolate => p_interpolate
+        procedure :: rescale => p_rescale
     end type t_bdf
 
     private
@@ -95,6 +97,40 @@ module m_bdf
         this % status = 0
 
     end subroutine p_next
+
+
+    subroutine p_interpolate (this, n, q, zc)
+
+        implicit none
+        class (t_bdf), intent (inout) :: this
+        real(8), intent (inout) :: zc (MAX_BDF_ORDER+1, n)
+        integer, intent (in) :: q, n
+        integer :: i, j
+
+        do i = 1, q + 1
+            do j = i + 1, q + 1
+                zc (i,:) = zc (i,:) + PASCAL (i,j) * zc (j,:)
+            enddo
+        enddo
+
+    end subroutine p_interpolate
+
+
+
+    subroutine p_rescale (this, n, z, h0, h1)
+        implicit none
+        class (t_bdf), intent (inout) :: this
+        integer, intent (in) :: n
+        real(8), intent (inout) :: z (MAX_BDF_ORDER+1, n)
+        real(8), intent (in) :: h0, h1
+        integer :: i
+        real(8) :: ratio
+        ratio = h1 / h0
+        do i = 2, MAX_BDF_ORDER+1
+            z (i,:) = ratio**(i-1) * z(i,:)
+        enddo
+    end subroutine p_rescale
+
 
     subroutine p_free (this)
         implicit none

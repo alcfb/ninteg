@@ -22,8 +22,8 @@ class Info:
     labels = [
         'total_iterations', 'successful_steps', 'rejected_iterations',
         'rejected_steps', 'step_attempts', 'function_calls',
-        'previous_order', 'suggested_order', 'time',
-        'last_step_size', 'suggested_step_size', 'relative_error',
+        'suggested_order', 'previous_order', 'time',
+        'suggested_step_size', 'last_step_size', 'relative_error',
         'dummy13', 'dummy14', 'dummy15'
     ]
 
@@ -106,16 +106,22 @@ class IVP:
         self.lib.init_h_min (ctypes.byref (c_double (hmin)))
         self.lib.init_h_max (ctypes.byref (c_double (hmax)))
 
-        while True:
+        yield time[0], self.x, self.info
 
-            self.lib.ivp_next (self.istatus_ref)
-            self.lib.get_info (self.info.data.ctypes)
-            self.lib.get_x (c_int (self.x.size), self.x.ctypes)
-            self.lib.get_t (self.t_ref)
+        for t in time [1:]:
 
-            yield self.t.value, self.x, self.info
+            self.lib.init_t1 (ctypes.byref (c_double (t)))
 
-            if self.istatus.value == 3: break
+            while True:
+
+                self.lib.ivp_next (self.istatus_ref)
+                self.lib.get_info (self.info.data.ctypes)
+                self.lib.get_x (c_int (self.x.size), self.x.ctypes)
+                self.lib.get_t (self.t_ref)
+
+                yield self.t.value, self.x, self.info
+
+                if self.istatus.value == 3: break
 
     def close(self):
         self.lib.clean()
@@ -124,7 +130,34 @@ class IVP:
 
 
 def integrate (time, x0, solv, rtol=1.E-6, atol=1.E-10, h0=1.E-6, hmin=1.E-10, hmax=1.E+10, qmax=5):
-
+    """
+    Parameters
+    --------------------
+    time : (t0, t1)
+        Time interval
+    x0 : array-like, shape `(n,)`
+        Initial vector.
+    dynamics : callable
+        Function implementing implicit step.
+    rtol : float, optional
+        Relative tolerance, default 1.E-6.
+    atol : float, optional
+        Relative tolerance, default 1.E-10.
+    h0 : float, optional
+        Initial step size, default 1.E-6.
+    hmin, hmax : float, optional
+        Step size bounds, default from 1.E-10 to 1.E+10.
+    qmax : int, optional
+        Maximum method order, default 5.
+    --------------------
+    Results:
+    t : float
+        current time.
+    x : array-like, shape `(n,)`
+        State vector.
+    info : Info
+        Solver diagnostics container.
+    """
     ivp = IVP (x0)
 
     solution = ivp.solve (time, solv, rtol, atol, h0, hmin, hmax, qmax)

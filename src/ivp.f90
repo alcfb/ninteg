@@ -29,7 +29,6 @@ module m_ivp
         procedure :: init => p_init
         procedure :: next => p_next
         procedure :: free => p_free
-        procedure :: stds => p_stds
         procedure :: print_state => p_print_state
     end type t_ivp
 
@@ -172,13 +171,14 @@ module m_ivp
                 this % e0 = this % e1
                 this % h0 = this % h0 * 0.5D0
                 ! Adjust ZC to the new step h
-                call adjust_nordsieck (MAX_BDF_ORDER+1, this % rank, this % zc, this % h1, this % h0)
+                call this % bdf % rescale (this % rank, this % zc, this % h1, this % h0)
             else
                 ! Select time step
                 call this % size % predict (this % rank, q, this % x, this % zc, this % e0, this % e1, this % atol, this % rtol, rs, ru, rd)
                 call this % ctrl % select (this % q0, this % h0, rs, ru, rd, q, h)
                 ! Adjust time step to the end of time
-!                call this % size % correct (h, this % t + this % h0, this % t1)
+                !h = min (h, this % t1 - this % t0)
+                ! call this % size % correct (h, this % t + this % h0, this % t1)
                 ! Save the current time step and order
                 this % z1 = this % zc
                 this % e1 = this % e0
@@ -190,7 +190,7 @@ module m_ivp
                 endif
                 ! Adjust ZC to the new step h
                 if (this % ctrl % todo .ne. "o") then
-                    call adjust_nordsieck (MAX_BDF_ORDER+1, this % rank, this % zc, this % h0, h)
+                    call this % bdf % rescale (this % rank, this % zc, this % h0, h)
 !                    this % e0 = this % e0 * (h / this % h0)**(this % q0+1)
 !                    this % e1 = this % e1 * (h / this % h1)**(this % q1+1)
                 endif
@@ -217,13 +217,32 @@ module m_ivp
         if (this % i_trials > 20) call error_message ("IVP", "too many trials at one time step")
 
         if (this % t >= this % t1) then
-            ratio = (this % t1 - this % t) / this % h1
-            this % x(:) = this % z1 (1,:)
-            do i = 1, this % q1
-                this % x(:) = this % x(:) + this % z1 (i+1,:) * ratio**i
-            enddo
-            !write(*,*) this % t, this % t1, this % z1(1,1), this % x(1)
+
+            ! The previous step h1 was too large
+            ! Therefore, we must go back in time by h
+
+            h = this % t - this % t1
+
+            ! Rescale vector Zc to -h
+            ! Shift Zc to the requested point t1
+            ! Rescale Zc again to h0
+
+            call this % bdf % rescale (this % rank, this % zc, this % h0, -h)
+            call this % bdf % interpolate (this % rank, this % q0, this % zc)
+            call this % bdf % rescale (this % rank, this % zc, -h, this % h0)
+
+            ! Update the solution vector X
+
+            this % x(:) = this % zc (1,:)
+
+            ! Update the restart vector Z1
+
+            this % h1 = this % h0 - h
+            this % z1 = this % zc
+            call this % bdf % rescale (this % rank, this % z1, -h, this % h1)
+
             this % t = this % t1
+
             this % status = 3
         else
             this % status = 2
@@ -264,18 +283,5 @@ module m_ivp
                                   this % lre!, &
                                   !this % x
     end subroutine p_print_state
-
-    subroutine p_stds (this)
-        implicit none
-        class (t_ivp), intent (inout) :: this
-        ! Update pointers to the mult and solv subroutines
-        this % bdf % nonlin % mult1 => this % mult
-        this % bdf % nonlin % solv1 => this % solv
-        ! Setup tolerance for inner iteration
-        this % bdf % nonlin % fpi % atol = this % atol
-        this % bdf % nonlin % fpi % rtol = this % rtol
-        this % bdf % nonlin % max_err = 0.06D0
-        call this % bdf % nonlin % stds (this % rank, this % x)
-    end subroutine p_stds
 
 end module m_ivp

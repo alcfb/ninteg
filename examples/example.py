@@ -28,4 +28,3 @@ print(f"""
    Total steps: {info.successful_steps:5.0f}
 Rejected steps: {info.rejected_steps:5.0f}
 Function calls: {info.function_calls:5.0f}""")
-
