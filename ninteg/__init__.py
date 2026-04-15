@@ -90,7 +90,9 @@ class IVP:
         self.solv (h, t, b, x, e)
 
 
-    def solve (self, time, solv, rtol, atol, h0, hmin, hmax, qmax):
+    def solve (self, time, solv, rtol, atol, h0, hmin, hmax, qmax, output):
+
+        assert output in [1,2,3], "ERROR: parameter 'output' must be 1, 2 or 3"
 
         self.solv = solv
 
@@ -106,8 +108,6 @@ class IVP:
         self.lib.init_h_min (ctypes.byref (c_double (hmin)))
         self.lib.init_h_max (ctypes.byref (c_double (hmax)))
 
-        yield time[0], self.x, self.info
-
         for t in time [1:]:
 
             self.lib.init_t1 (ctypes.byref (c_double (t)))
@@ -119,7 +119,9 @@ class IVP:
                 self.lib.get_x (c_int (self.x.size), self.x.ctypes)
                 self.lib.get_t (self.t_ref)
 
-                yield self.t.value, self.x, self.info
+                # show only successful steps
+                if self.info.step_attempts == 0 or output == 3:
+                    yield self.t.value, self.x, self.info
 
                 if self.istatus.value == 3: break
 
@@ -129,7 +131,7 @@ class IVP:
 
 
 
-def integrate (time, x0, solv, rtol=1.E-6, atol=1.E-10, h0=1.E-6, hmin=1.E-10, hmax=1.E+10, qmax=5):
+def integrate (time, x0, solv, rtol=1.E-6, atol=1.E-10, h0=1.E-6, hmin=1.E-10, hmax=1.E+10, qmax=5, output=2):
     """
     Parameters
     --------------------
@@ -149,6 +151,11 @@ def integrate (time, x0, solv, rtol=1.E-6, atol=1.E-10, h0=1.E-6, hmin=1.E-10, h
         Step size bounds, default from 1.E-10 to 1.E+10.
     qmax : int, optional
         Maximum method order, default 5.
+    output : int, optional
+        Time points to show,
+        1 - interval points
+        2 - interval and internal points [default]
+        3 - interval, internal and rejected points
     --------------------
     Results:
     t : float
@@ -160,7 +167,7 @@ def integrate (time, x0, solv, rtol=1.E-6, atol=1.E-10, h0=1.E-6, hmin=1.E-10, h
     """
     ivp = IVP (x0)
 
-    solution = ivp.solve (time, solv, rtol, atol, h0, hmin, hmax, qmax)
+    solution = ivp.solve (time, solv, rtol, atol, h0, hmin, hmax, qmax, output=output)
 
     yield from solution
 

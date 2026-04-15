@@ -19,8 +19,7 @@ time = (0, 100)
 
 solution = integrate (time, x0, dynamics)
 
-for t, x, info in solution:
-    pass
+for t, x, info in solution: pass
 
 print(f"""   
         Time T: {t:9.3f} s
