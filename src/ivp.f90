@@ -10,7 +10,8 @@ module m_ivp
     type, public :: t_ivp
         real(8), allocatable :: rwork (:)
         integer, allocatable :: iwork (:)
-        integer :: status, imethod, liw, lrw, istate
+        integer :: status
+        integer :: imethod
         integer :: rank, i_iter, i_step, i_step_rejects, i_iter_rejects, i_trials, n_calls
         real(8) :: t, t0, t1, lre
         real(8), allocatable :: x (:), atol(:), rtol(:)
@@ -29,7 +30,6 @@ module m_ivp
         procedure :: init => p_init
         procedure :: next => p_next
         procedure :: free => p_free
-        procedure :: print_state => p_print_state
     end type t_ivp
 
     include "mult.h"
@@ -62,6 +62,12 @@ module m_ivp
         call this % size % make (rank)
         call this % ctrl % make
 
+        ! 0 - allocated memory
+        ! 1 - initialized parameters
+        ! 2 - computed state at the first point
+        ! 3 - continue after successful step
+        ! 4 - continue after rejected step
+        ! 5 - computed state at the last point
         this % status = 0
 
         this_ => this
@@ -107,7 +113,6 @@ module m_ivp
         this % i_trials = 0
         this % n_calls = 0
         this % lre = 1
-        this % istate = 1
 
         call this % ctrl % init
 
@@ -150,6 +155,7 @@ module m_ivp
             ! Local error
             this % lre = 1
             this % i_step = this % i_step + 1
+            this % status = 2
         else
             q = this % q0
             ! Update ZC and ZP given q, t and h
@@ -172,6 +178,7 @@ module m_ivp
                 this % h0 = this % h0 * 0.5D0
                 ! Adjust ZC to the new step h
                 call this % bdf % rescale (this % rank, this % zc, this % h1, this % h0)
+                this % status = 4
             else
                 ! Select time step
                 call this % size % predict (this % rank, q, this % x, this % zc, this % e0, this % e1, this % atol, this % rtol, rs, ru, rd)
@@ -207,6 +214,7 @@ module m_ivp
                     this % i_step_rejects = this % i_step_rejects + 1
                     this % i_trials = 0
                 endif
+                this % status = 3
             endif
         endif
 
@@ -243,9 +251,7 @@ module m_ivp
 
             this % t = this % t1
 
-            this % status = 3
-        else
-            this % status = 2
+            this % status = 5
         endif
 
     end subroutine p_next
@@ -268,20 +274,5 @@ module m_ivp
         call this % ctrl % free
         this % status = -1
     end subroutine p_free
-
-    subroutine p_print_state (this, i)
-        implicit none
-        integer :: i
-        class (t_ivp), intent (inout) :: this
-        write (i,'(5I8,9999999E25.9)') this % i_iter, &
-                                  this % i_step, &
-                                  this % i_iter_rejects, &
-                                  this % n_calls, &
-                                  this % q1,  &
-                                  this % t,   &
-                                  this % h0,  &
-                                  this % lre!, &
-                                  !this % x
-    end subroutine p_print_state
 
 end module m_ivp

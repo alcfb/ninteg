@@ -98,7 +98,7 @@ module m_py_ninteg
         val (10) = ivp % h0
         val (11) = ivp % h1
         val (12) = ivp % lre
-        val (13) = 0
+        val (13) = real (ivp % status, kind=c_double)
         val (14) = 0
         val (15) = 0
 
@@ -121,11 +121,9 @@ module m_py_ninteg
         call ivp % init
     end subroutine ivp_init
 
-    subroutine ivp_next (istatus) bind (c, name='ivp_next')
-        integer(c_int), intent(out) :: istatus
+    subroutine ivp_next () bind (c, name='ivp_next')
         if (.not. is_allocated) call error_message ('ninteg.f90', "IVP not initialized. Call make() first.")
         call ivp % next
-        istatus = ivp % status
     end subroutine ivp_next
 
     subroutine clean () bind(c, name='clean')

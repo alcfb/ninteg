@@ -14,17 +14,17 @@ c_function = ctypes.CFUNCTYPE(None, c_int_p, c_double_p, c_double_p, c_void_p, c
 def as_array(ptr, n):
     return numpy.ctypeslib.as_array(ptr, shape=(n,))
 
-lib_path = next(pathlib.Path(__file__).parent.glob("libninteg.*"))
+lib_path = next(pathlib.Path(__file__).parent.glob("../build/libninteg.*"))
 lib = ctypes.CDLL(str(lib_path))
 
 class Info:
 
     labels = [
         'total_iterations', 'successful_steps', 'rejected_iterations',
-        'rejected_steps', 'step_attempts', 'function_calls',
+        'rejected_steps', 'rejected', 'function_calls',
         'suggested_order', 'previous_order', 'time',
         'suggested_step_size', 'last_step_size', 'relative_error',
-        'dummy13', 'dummy14', 'dummy15'
+        'status', 'dummy14', 'dummy15'
     ]
 
     def __init__(self):
@@ -63,7 +63,7 @@ class IVP:
         self.lib.init_h_max.argtypes = [c_double_p]
 
         self.lib.ivp_init.argtypes = []
-        self.lib.ivp_next.argtypes = [c_int_p]
+        self.lib.ivp_next.argtypes = []
 
         self.lib.get_t.argtypes = [c_double_p]
         self.lib.get_x.argtypes = [c_int_p, c_void_p]
@@ -114,16 +114,33 @@ class IVP:
 
             while True:
 
-                self.lib.ivp_next (self.istatus_ref)
+                self.lib.ivp_next ()
                 self.lib.get_info (self.info.data.ctypes)
                 self.lib.get_x (c_int (self.x.size), self.x.ctypes)
                 self.lib.get_t (self.t_ref)
 
-                # show only successful steps
-                if self.info.step_attempts == 0 or output == 3:
+                # info status:
+                # 0 - allocation
+                # 1 - initialization
+                # 2 - computed state at the first point
+                # 3 - continue after successful step
+                # 4 - continue after rejected step
+                # 5 - computed state at the last point
+
+                # all successful and rejected points
+                if output == 3 and int(self.info.status) in [2,3,4,5]:
                     yield self.t.value, self.x, self.info
 
-                if self.istatus.value == 3: break
+                # successful points
+                if output == 2 and int(self.info.status) in [2,3,5]:
+                    yield self.t.value, self.x, self.info
+
+                # interval points
+                if output == 1 and int(self.info.status) in [2,5]:
+                    yield self.t.value, self.x, self.info
+
+                if int(self.info.status) == 5: break
+
 
     def close(self):
         self.lib.clean()
@@ -153,8 +170,8 @@ def integrate (time, x0, solv, rtol=1.E-6, atol=1.E-10, h0=1.E-6, hmin=1.E-10, h
         Maximum method order, default 5.
     output : int, optional
         Time points to show,
-        1 - interval points
-        2 - interval and internal points [default]
+        1 - interval points from 'time'
+        2 - interval and successful internal points [default]
         3 - interval, internal and rejected points
     --------------------
     Results:
