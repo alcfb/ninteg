@@ -8,21 +8,30 @@ module m_ivp
     implicit none
 
     type, public :: t_ivp
-        real(8), allocatable :: rwork (:)
-        integer, allocatable :: iwork (:)
-        integer :: status
-        integer :: imethod
-        integer :: rank, i_iter, i_step, i_step_rejects, i_iter_rejects, i_trials, n_calls
-        real(8) :: t, t0, t1, lre
-        real(8), allocatable :: x (:), atol(:), rtol(:)
-        real(8), allocatable, private :: zc (:,:), z1 (:,:), dz(:), z0(:)
-        real(8), allocatable, private :: e0(:), e1(:)
-        real(8) :: h0, h1
-        integer :: q0, q1
+        integer :: status = -1    ! calculations status
+        integer :: imethod = 13   ! 13 - Anderson method with 'solv'
+        integer :: rank = 0       ! ODE vector dimension
+        integer :: i_iter         ! # iterations including steps, rejections etc.
+        integer :: i_step         ! index of the current successful time step
+        integer :: i_step_rejects !
+        integer :: i_iter_rejects !
+        integer :: i_trials       ! number of trials at a given rejected step
+        integer :: n_calls        ! number of calls of function 'solv'
+        real(8) :: t              ! current time
+        real(8) :: lre            ! local truncation error e = e(t)
+        real(8) :: t0, t1         ! current and previous time point
+        real(8) :: h0, h1         ! current and previous step sizes
+        integer :: q0, q1         ! current and previous step orders
         type (t_bdf) :: bdf
         type (t_size) :: size
         type (t_ctrl) :: ctrl
+        real(8), allocatable :: x (:) ! state vector x = x(t)
+        real(8), allocatable :: atol(:), rtol(:)
+        real(8), allocatable, private :: zc (:,:), z1 (:,:), dz(:), z0(:)
+        real(8), allocatable, private :: e0(:), e1(:)
+        ! Function mult : f = f(t,x)
         procedure (arg_mult), pointer, nopass :: mult => NULL()
+        ! Function solv : x - h f(t,x) = b => x
         procedure (arg_solv), pointer, nopass :: solv => NULL()
     contains
         procedure :: make => p_make
@@ -62,6 +71,7 @@ module m_ivp
         call this % size % make (rank)
         call this % ctrl % make
 
+        !-1 - deallocated
         ! 0 - allocated memory
         ! 1 - initialized parameters
         ! 2 - computed state at the first point
@@ -167,9 +177,6 @@ module m_ivp
             this % lre = this % lre * FACT (q) / (q + 1)
             ! Check if reject is required
             if ((this % lre > 1).or.(this % bdf % nonlin % status .ne. 0)) then
-                !write (*,*) 'LRE: ', this % lre
-                !this % e0 = this % e0 / (this % x * this % rtol + this % atol)
-                !write (*,*) maxval (this % e0 (1:144)), maxval (this % e0 (145:288))
                 this % i_trials = this % i_trials + 1
                 ! Recall state and setup new step size
                 this % zc = this % z1
@@ -183,9 +190,6 @@ module m_ivp
                 ! Select time step
                 call this % size % predict (this % rank, q, this % x, this % zc, this % e0, this % e1, this % atol, this % rtol, rs, ru, rd)
                 call this % ctrl % select (this % q0, this % h0, rs, ru, rd, q, h)
-                ! Adjust time step to the end of time
-                !h = min (h, this % t1 - this % t0)
-                ! call this % size % correct (h, this % t + this % h0, this % t1)
                 ! Save the current time step and order
                 this % z1 = this % zc
                 this % e1 = this % e0
@@ -198,8 +202,6 @@ module m_ivp
                 ! Adjust ZC to the new step h
                 if (this % ctrl % todo .ne. "o") then
                     call this % bdf % rescale (this % rank, this % zc, this % h0, h)
-!                    this % e0 = this % e0 * (h / this % h0)**(this % q0+1)
-!                    this % e1 = this % e1 * (h / this % h1)**(this % q1+1)
                 endif
                 ! Accept the new step size
                 this % t = this % t + this % h1

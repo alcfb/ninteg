@@ -14,7 +14,7 @@ c_function = ctypes.CFUNCTYPE(None, c_int_p, c_double_p, c_double_p, c_void_p, c
 def as_array(ptr, n):
     return numpy.ctypeslib.as_array(ptr, shape=(n,))
 
-lib_path = next(pathlib.Path(__file__).parent.glob("../build/libninteg.*"))
+lib_path = next(pathlib.Path(__file__).parent.glob("libninteg.*"))
 lib = ctypes.CDLL(str(lib_path))
 
 class Info:

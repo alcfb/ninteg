@@ -1,5 +1,10 @@
 module m_ctrl
+
+    ! Step size and order control module
+    ! Build in accordance with LSODE algorithm
+
     use m_parameters
+
     implicit none
 
     type, public :: t_ctrl
