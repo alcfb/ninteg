@@ -1,7 +1,10 @@
 # NINTEG – Numerical Integration of Stiff ODEs
 
+A stiff system of ODEs is integrated by Backward Differentiation Formula (BDF) method using automatic step size and order selection. The key feature of the code is that it allows users to provide their own in-step solver instead of a Jacobian matrix, giving more control over the integration process. In addition, only a linear part of this equation can be resolved, leaving the code to handle a nonlinear part iteratively using the Anderson method. The code does not require any external dependencies.
+
 ## Description
-A stiff system of ODEs, `dx/dt=f(t,x)`, is integrated step-by-step by Backward Differentiation Formula (BDF) in Nordsieck formulation, with automatic step size and order selection. According to this method, a non-linear system of algebraic equations, `x - h f(t,x) = b`, must be solved for every time step, where `x` is the unknown vector, `t` is the time, `h` is the step-size, and `b` is the source vector. The key feature of the code is that it allows users to provide their own in-step solver instead of a Jacobian matrix, giving more control over the integration process. Alternatively, only a linear part of this equation can be resolved, leaving the code to handle a nonlinear part iteratively using the Anderson method.
+
+The code implements the BDF method for the system of ODEs, `dx/dt=f(t,x)`, where `x` is the unknown vector, `t` is the time, and `h` is the step-size. BDF method is an `A`-stable implicit multistep algorithm. In this implementation, solution is represented by the Nordsieck vector, `z = (x,hx',h^2x''/2!,...,h^q x^(q)/q!)`, allowing efficiently change step size `h` and order `q` of the integration scheme to control the local truncation error. The algorithm generally follows the LSODE method with that difference that the solution of in-step equation, `x - h f(t,x) = b`, is user-provided. The Anderson method is built-in to solve the in-step non-linear equation.
 
 ## Usage
 Solve `dx/dt = a x` on time interval `0 < t < 1` for initial value `x(0) = 1` and parameter `a = -1.5`,
