@@ -63,18 +63,34 @@ def dynamics(h, t, b, x, e):
     C1 = K0 * h * (1 - T0 / x[-1])**0.25
     x[-1] = T0 + (C0 * (b[-1] - T0) + h * x[0]) / (C0 + C1)
 
+
+
+time, reference = np.array([
+ [0.0E+00, 1.000000000E-02],
+ [1.0E+00, 1.390664400E-02],
+ [1.0E+01, 1.033074569E-01],
+ [1.0E+02, 7.946137382E-01],
+ [2.5E+02, 2.118680532E-03],
+ [5.0E+02, 9.818854372E-01],
+ [7.5E+02, 4.033472004E+00],
+ [1.0E+03, 7.680950791E+00],
+ [1.5E+03, 1.502421669E+01],
+ [2.0E+03, 1.358851928E+01],
+ [2.5E+03, 1.348250322E+01],
+ [3.0E+03, 1.359755709E+01],
+ [4.0E+03, 1.357214030E+01]]).T
+
 # Initial state vector: [Power, Precursors, Temperature]
 x0 = np.concatenate(([P0], P0 * bet / (lam * L0), [T0]))
-solution = integrate((0, 250*60), x0, dynamics)
 
-for t, x, info in solution: pass
+solution = integrate(60*time, x0, dynamics, output=1)
 
-# Output Results
+# Integration & Output
+for ref, (t, x, info) in zip (reference, solution):
+    print(f"""Time = {t/60:9.3f} min, P = {x[0]:15.9e} W, T = {x[-1]:9.3e} °C, dP = {x[0]/ref-1:8.1e}""")
+
+# Statistics
 print(f"""   
-          Time: {t:9.3f} s
-     Reference: 2.118680532E-03 Watt
-         Power: {x[0]:15.9e} Watt
-   Temperature: {x[-1]:9.3e} °C
    Total steps: {info.successful_steps:5.0f}
 Rejected steps: {info.rejected_steps:5.0f}
 Function calls: {info.function_calls:5.0f}""")
