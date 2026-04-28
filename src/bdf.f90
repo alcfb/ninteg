@@ -7,7 +7,9 @@ module m_bdf
     type, public :: t_bdf
         integer :: status
         integer, private :: rank
-        real (8), allocatable, private :: zp (:,:), b (:), x (:)
+        integer, allocatable, private :: e2 (:)
+        real(8), allocatable, private :: PL (:,:), r0(:), r1(:)
+        real(8), allocatable, private :: zp (:,:), b (:), x (:)
         type (t_nonlin) :: nonlin
     contains
         procedure :: make => p_make
@@ -25,38 +27,41 @@ module m_bdf
         implicit none
         integer, intent (in) :: rank
         class (t_bdf), intent (inout) :: this
+        integer :: i, j
 
         this % rank = rank
 
+        allocate (this % PL (MAX_BDF_ORDER, MAX_BDF_ORDER+1))
         allocate (this % zp (MAX_BDF_ORDER+1, rank))
         allocate (this % x (rank))
         allocate (this % b (rank))
+        allocate (this % e2 (MAX_BDF_ORDER+1))
+        allocate (this % r0 (MAX_BDF_ORDER))
+        allocate (this % r1 (MAX_BDF_ORDER))
 
         call this % nonlin % make (rank)
         call this % nonlin % deft
 
+        do i = 0, MAX_BDF_ORDER
+            this % e2 (i+1) = i
+        enddo
+
+        do i = 1, MAX_BDF_ORDER
+            do j = 1, MAX_BDF_ORDER + 1
+                this % PL (i,j) = sum (PASCAL (j,:) * LL (i,:))
+            enddo
+        enddo
+
+        do i = 1, MAX_BDF_ORDER
+            this % r0 (i) = sum (LL(i,:))
+            this % r1 (i) = sum (LL(i,:) * this % e2)
+        enddo
+
     end subroutine p_make
 
-    subroutine p_next (this, n, q, t, h, zc, e)
-        ! Solves the system of equations
-        ! Nordsieck vector: ZC = (ZC(0),...,ZC(q))^T
-        ! Predictor vector: ZP = PASCAL * ZC0
-        ! Residual value:   dz = ZC(0) - ZP(0)
-        !
-        ! Polynomial passes q nodes in [t,t+h]:
-        ! ZC(1) - ZP(1) = l1 * dz               (1)
-        ! ZC(q) - ZP(q) = lq * dz, q > 1
-        !
-        ! Polynomial's first derivative
-        ! ZC(1) = h * f(ZC(0))                  (2)
-        ! 
-        ! Resolve 0th component from Eqs. 1 and 2:
-        ! ZC(0) : h * f(ZC(0)) - l1 * ZC(0) = ZP(1) - l1 * ZP(0)
-        !
-        ! Resolve other components:
-        ! ZC(q) = ZP(q) + lq * (ZC(0) - ZP(0)), q > 0
-        !
 
+
+    subroutine p_next (this, n, q, t, h, zc, e)
         implicit none
         class (t_bdf), intent (inout) :: this
         real(8), intent (inout) :: zc (MAX_BDF_ORDER+1, n)
@@ -66,7 +71,8 @@ module m_bdf
         integer :: i, j
         real(8) :: alpha, c0
 
-        ! Predictor ZP = PASCAL * ZC
+        ! ------ ZP = PASCAL * ZC' ------
+
         this % zp = 0
         do i = 1, q + 1
             do j = 1, q + 1
@@ -76,21 +82,35 @@ module m_bdf
             enddo
         enddo
 
-        ! Right hand side B = YP - l1 * h * YP'
-        this % b = this % zp (1,:) - this % zp (2,:) / CONST_L (q,1)
+        ! ------ RHS = ZP(1) - alpha * ZP(2) ------
 
-        ! Next time step solution, x: x - l1 * h * f(x) = b
-        alpha = h / CONST_L (q,1)
-        this % nonlin % max_err = 0.1D0 * (q+1)/(q+2) / FACT(q) / CONST_L (q,q) * CONST_L (q,1)
+        alpha = this % r0 (q) / this % r1 (q)
+
+        this % b = this % zp (1,:) - this % zp (2,:) * alpha
+
+        ! ------ In-Step Equation Solution Error ------
+
+        this % nonlin % max_err = 0.1D0 * (q+1) / (q+2) / FACT(q) * this % PL (q,2)
+
+        ! ------ X - alpha * h * F (t + h, X) = RHS => ZC(1) = X ------
+
         this % x = this % zp (1,:)
-        call this % nonlin % solv (n, alpha, t + h, this % b, this % x)
 
-        ! Corrector ZC = ZP + li/l1 * (X - YP)
+        call this % nonlin % solv (n, alpha * h, t + h, this % b, this % x)
+
         zc (1,:) = this % x
-        this % b = zc (1,:) - this % zp (1,:)
+
+        ! ------ BETA = (ZC(1) - ZP(1)) / sum(L) ------
+
+        this % b = (zc (1,:) - this % zp (1,:)) / this % r0 (q)
+
+        ! ------ ZC(i) = ZP(i) + BETA * PASCAL * L ------
+
         do i = 2, q + 1
-            zc (i,:) = this % zp (i,:) + this % b * CONST_L (q,i-1)
+            zc (i,:) = this % zp (i,:) + this % b * this % PL (q,i)
         enddo
+
+        ! ------ Local Truncation Error ------
 
         e = zc(q+1,:) - this % zp (q+1,:)
 
@@ -138,6 +158,10 @@ module m_bdf
         deallocate (this % x)
         deallocate (this % b)
         deallocate (this % zp)
+        deallocate (this % r0)
+        deallocate (this % r1)
+        deallocate (this % e2)
+        deallocate (this % PL)
         call this % nonlin % free
     end subroutine p_free
 end module m_bdf

@@ -44,7 +44,7 @@ module m_ctrl
         real(8), intent (out):: h
         integer, intent (out):: q
 
-        if (q0 == MAX_BDF_ORDER) then
+        if (q0 == this % qmax) then
             if (rs >=rd) this % todo = "s"
             if (rs < rd) this % todo = "d"
         elseif (q0 == 1) then
