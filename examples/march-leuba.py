@@ -8,86 +8,104 @@ from ninteg import integrate
 # =============================================================================
 #
 # 1. Point Kinetics Equations (Neutron Power & Precursors):
-#    dP/dt = (R(T) - 1) * bet / L * P(t) + lam * C(t)
-#    dC/dt = (bet / L) * P(t) - lam * C(t)
+#    dP/dt = (rho - bet) / l0 * P + lam * C
+#    dC/dt = bet / l0 * P - lam * C
 #
 # 2. Thermal-Hydraulics Equation (Temperature):
-#    dTf/dt = a1 * P(t) - a2 * (Tf(t) - T0)
-#    dRa/dt + 6 / tau dRa/dt + 12/tau^2 Ra = C H^2 / tau (dQ/dt + 6/tau Q)
+#    dT/dt = a1 * (P - 1) - a2 * T
+#    dR/dt = Z
+#    dZ/dt =-6 / tau Z - 12/tau^2 R + C H^2 / tau (dT/dt + 6/tau T)
 #
 # 3. Reactivity Feedback:
-#    R = Ra + D*Tf
+#    rho = R + D * T
 #
-# 4. Initial conditions: steady state at P0 and T0
+# 4. Initial conditions: steady state at P0 = 1 and T0 = 0
 # =============================================================================
 
-#H = 4.D0
-#C = -3.65D-4
-#D = -2.61D-5
-#tau = 1.63D0
-#a3 = 6.D0 / tau
-#a4 = 12.D0 / tau**2
-#a5 = a1 * C * H**2 / tau
-#k0 = C*H**2/tau * (a3-a2)
-#k0 = -0.01798854 * 0.2
+class Point_Kinetics:
 
-# --- Physical Dimensions & Environmental Constants ---
-H = 4.          # Height (m)
+    l0  = 4.0E-5    # Prompt neutron lifetime (s)
+    lam = [0.08]    # Decay constants (1/s)
+    bet = [0.0056]  # Delayed neutron fractions (-)
+    D0  =-2.61e-5   # Doppler Effect (1/K)
+    R0  = 5.6e-5    # Reactivity Perturbation (-)
 
-# --- Reactor Kinetics Parameters ---
-P0 = 1.0E-2     # Initial Power (W)
-L0 = 4.0E-5     # Prompt neutron lifetime (s)
-R0 = 0.01      # Initial reactivity perturbation ($)
-D0 =-2.61E-5    # Doppler coefficient (1/K)
+    def __init__ (self):
+        self.bet = np.array (self.bet)
+        self.lam = np.array (self.lam)
+        rank = len(self.lam) + 1
+        mat = np.zeros((rank, rank))
+        mat[0,  0] =-sum(self.bet) / self.l0
+        mat[0, 1:] = self.lam
+        mat[1:, 0] = self.bet / self.l0
+        np.fill_diagonal (mat[1:, 1:], -self.lam)
+        self.mat_0 = mat
+        self.mat_h = np.zeros((rank, rank))
+        self.mat_e = np.eye(rank)
+        self.src_h = np.zeros(rank)
 
-# --- Delayed Neutron Precursors ---
-lam = [0.08]    # Decay constants (s^-1)
-bet = [0.0056]  # Delayed neutron fractions (-)
+    def solve (self, source, h, temp=0, void=0):
+        self.mat_h [:,:] = self.mat_e - h * self.mat_0
+        self.mat_h [0,0]-= h / self.l0 * (void + self.D0 * temp + self.R0)
+        self.src_h [:] = source
+        return np.linalg.solve (self.mat_h, self.src_h)
 
-# --- Thermal Hydraulic Properties ---
-a1 = 19.08      # K/s
-a2 =  0.19      # 1/s
-dt =  1.63      # bubble transit time (s)
-c0 = -3.65e-4   # 1/K
-k0 = -0.0037    # K/s
+    def steady (self):
+        return np.concatenate (([1], self.bet / self.lam / self.l0))
 
-# --- Computational Pre-calculations ---
-sum_bet_L0 = np.sum(bet) / L0
-rank = len(lam) + 1
-E0 = np.eye(rank)
+class Thermal_Hydraulics:
 
-# Initialize Point Kinetics Matrix (PK)
-PK = np.zeros((rank, rank))
-PK[0, 0] = (R0 - 1) * sum_bet_L0
-PK[0, 1:] = lam
-PK[1:, 0] = bet / L0
-np.fill_diagonal(PK[1:, 1:], -lam)
+    a1 = 19.08      # K/s
+    a2 =  0.19      # 1/s
+    t0 =  1.63      # bubble transit time (s)
+    C0 = -3.65e-4   # 1/K
+    k0 = -0.0037    # feedback gain (K/s)
+    H0 =  4.        # height (m)
+
+    def __init__ (self, rank=3):
+        mat = np.zeros ((rank, rank))
+        mat [0,0] =-self.a2
+        mat [1,2] = 1
+        mat [2,:] = [(6 / self.t0 - self.a2) * self.C0 * self.H0**2 / self.t0, -6 / self.t0, -12 / self.t0**2]
+        self.mat_0 = mat
+        self.mat_h = np.zeros ((rank, rank))
+        self.mat_e = np.eye(rank)
+        self.src_h = np.zeros(rank)
+    def solve (self, source, h, power=0):
+        self.mat_h [:,:] = self.mat_e - h * self.mat_0
+        self.src_h [:] = source
+        self.src_h [0] += h * self.a1 * (power - 1)
+        self.src_h [2] += h * self.a1 * (power - 1) * self.C0 * self.H0**2 / self.t0
+        return np.linalg.solve (self.mat_h, self.src_h)
+
+    def steady (self):
+        return np.zeros(3)
+
+
+# Initialize Elementary Models
+PK = Point_Kinetics ()
+TH = Thermal_Hydraulics ()
 
 def dynamics(h, t, b, x, e):
-    # Point Kinetics with Temperature Feedback
-    Ah = E0 - h * PK
-    Ah[0, 0] -= h * B0 * (x[-1] - T0) * sum_bet_L0
-    x[:-1] = np.linalg.solve(Ah, b[:-1])
+    x[:-3] = PK.solve (b[:-3], h, temp=x[-3], void=x[-2])
+    x[-3:] = TH.solve (b[-3:], h, power=x[0])
 
-    # Thermal Hydraulics:
-    C1 = K0 * h * (1 - T0 / x[-1])**0.25
-    x[-1] = T0 + (C0 * (b[-1] - T0) + h * x[0]) / (C0 + C1)
+init_state = np.concatenate ((PK.steady(), TH.steady()))
 
-t_ref = [10, 20, 10] # ?
-p_ref = [-0.25115159e-01, 0.3530984878e+00, 0.72166432e-03]
+solution = integrate((0, 20), init_state, dynamics)
 
-# Initial state vector: [Power, Precursors, Temperature]
-x0 = np.concatenate(([P0], P0 * bet / (lam * L0), [T0]))
-solution = integrate((0, 250*60), x0, dynamics)
+#t_ref = [10, 20, 10] # ?
+#p_ref = [-0.25115159e-01, 0.3530984878e+00, 0.72166432e-03]
 
 for t, x, info in solution: pass
+#    print (f"{t:9.3f}s : {x[0]:15.9e} W")
 
 # Output Results
 print(f"""   
-          Time: {t:9.3f} s
-     Reference: 2.118680532E-03 Watt
-         Power: {x[0]:15.9e} Watt
-   Temperature: {x[-1]:9.3e} °C
+          Time: {t:9.3f} (s)
+     Reference: 1.3530984878e+00 (-)
+         Power: {x[0]:15.10e} (-)
+   Temperature: {x[-3]:9.3e} (K)
    Total steps: {info.successful_steps:5.0f}
 Rejected steps: {info.rejected_steps:5.0f}
 Function calls: {info.function_calls:5.0f}""")
