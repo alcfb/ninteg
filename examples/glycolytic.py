@@ -9,7 +9,7 @@ from ninteg import integrate
 # Stable limit cycle: a = 0.08, b = 0.6
 # Stable fixed point: a = 0.08, b = 1.0
 
-def dynamics (h, t, b, x, e):
+def dynamics (h, t, b, x, e, params):
     A, B = 0.08, 1.0
     x[0] = (b[0] + A * h * x[1]) / (1 + h - h * x[0] * x[1])
     x[1] = (b[1] + B * h - h * x[0]**2 * x[1]) / (1 + A * h)

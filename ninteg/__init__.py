@@ -91,13 +91,14 @@ class IVP:
         b = as_array (ctypes.cast(pb, c_double_p), n)
         x = as_array (ctypes.cast(px, c_double_p), n)
 
-        self.solv (h, t, b, x, e)
+        self.solv (h, t, b, x, e, params=self.params)
 
 
-    def solve (self, time, solv, rtol, atol, h0, hmin, hmax, qmax, output):
+    def solve (self, time, solv, rtol, atol, h0, hmin, hmax, qmax, output, params=None):
 
         assert output in [1,2,3], "ERROR: parameter 'output' must be 1, 2 or 3"
 
+        self.params = params
         self.solv = solv
 
         self.lib.ivp_init ()
@@ -152,7 +153,7 @@ class IVP:
 
 
 
-def integrate (time, x0, solv, rtol=1.E-6, atol=1.E-10, h0=1.E-6, hmin=1.E-10, hmax=1.E+10, qmax=5, output=2):
+def integrate (time, x0, solv, rtol=1.E-6, atol=1.E-10, h0=1.E-6, hmin=1.E-10, hmax=1.E+10, qmax=5, output=2, params=None):
     """
     Parameters
     --------------------
@@ -172,6 +173,8 @@ def integrate (time, x0, solv, rtol=1.E-6, atol=1.E-10, h0=1.E-6, hmin=1.E-10, h
         Step size bounds, default from 1.E-10 to 1.E+10.
     qmax : int, optional
         Maximum method order, default 5.
+    params : array-like,
+        Extra parameters to 'dynamics'
     output : int, optional
         Time points to show,
         1 - interval points from 'time'
@@ -188,7 +191,7 @@ def integrate (time, x0, solv, rtol=1.E-6, atol=1.E-10, h0=1.E-6, hmin=1.E-10, h
     """
     ivp = IVP (x0)
 
-    solution = ivp.solve (time, solv, rtol, atol, h0, hmin, hmax, qmax, output=output)
+    solution = ivp.solve (time, solv, rtol, atol, h0, hmin, hmax, qmax, output=output, params=params)
 
     yield from solution
 

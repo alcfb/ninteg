@@ -53,7 +53,7 @@ PK[0, 1:] = lam
 PK[1:, 0] = bet / L0
 np.fill_diagonal(PK[1:, 1:], -lam)
 
-def dynamics(h, t, b, x, e):
+def dynamics(h, t, b, x, e, params):
     # Point Kinetics with Temperature Feedback
     Ah = E0 - h * PK
     Ah[0, 0] -= h * B0 * (x[-1] - T0) * sum_bet_L0
