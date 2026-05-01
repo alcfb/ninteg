@@ -91,7 +91,7 @@ class IVP:
         b = as_array (ctypes.cast(pb, c_double_p), n)
         x = as_array (ctypes.cast(px, c_double_p), n)
 
-        self.solv (h, t, b, x, e, params=self.params)
+        self.solv (h, t, b, x, e, self.params)
 
 
     def solve (self, time, solv, rtol, atol, h0, hmin, hmax, qmax, output, params=None):
