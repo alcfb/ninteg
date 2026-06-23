@@ -15,7 +15,7 @@ from ninteg import integrate
 # Define problem
 time, x0, a = (0.0, 1.0), [1], -1.5
 
-def dynamics (h, t, b, x, e):
+def dynamics (h, t, b, x, e, params):
     """
     User-defined implicit step function
     x - h * f(t, x) = b
