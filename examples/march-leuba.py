@@ -86,7 +86,7 @@ class Thermal_Hydraulics:
 PK = Point_Kinetics ()
 TH = Thermal_Hydraulics ()
 
-def dynamics(h, t, b, x, e):
+def dynamics(h, t, b, x, e, params):
     x[:-3] = PK.solve (b[:-3], h, temp=x[-3], void=x[-2])
     x[-3:] = TH.solve (b[-3:], h, power=x[0])
 
