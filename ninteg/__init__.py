@@ -26,8 +26,8 @@ class Info:
     labels = [
         'total_iterations', 'successful_steps', 'rejected_iterations',
         'rejected_steps', 'rejected', 'function_calls',
-        'suggested_order', 'previous_order', 'time',
-        'suggested_step_size', 'last_step_size', 'relative_error',
+        'next_order', 'last_order', 'time',
+        'next_step_size', 'last_step_size', 'relative_error',
         'status', 'dummy14', 'dummy15'
     ]
 
@@ -65,6 +65,7 @@ class IVP:
         self.lib.init_q_max.argtypes = [c_int_p]
         self.lib.init_h_min.argtypes = [c_double_p]
         self.lib.init_h_max.argtypes = [c_double_p]
+        self.lib.init_ctrl_method.argtypes = [c_int_p]
 
         self.lib.ivp_init.argtypes = []
         self.lib.ivp_next.argtypes = []
@@ -94,7 +95,7 @@ class IVP:
         self.solv (h, t, b, x, e, self.params)
 
 
-    def solve (self, time, solv, rtol, atol, h0, hmin, hmax, qmax, output, params=None):
+    def solve (self, time, solv, rtol, atol, h0, hmin, hmax, qmax, output=1, control=True, params=None):
 
         assert output in [1,2,3], "ERROR: parameter 'output' must be 1, 2 or 3"
 
@@ -112,6 +113,7 @@ class IVP:
         self.lib.init_q_max (ctypes.byref (c_int (qmax)))
         self.lib.init_h_min (ctypes.byref (c_double (hmin)))
         self.lib.init_h_max (ctypes.byref (c_double (hmax)))
+        self.lib.init_ctrl_method (ctypes.byref (c_int (2 if control else 1)))
 
         for t in time [1:]:
 
@@ -153,7 +155,7 @@ class IVP:
 
 
 
-def integrate (time, x0, solv, rtol=1.E-6, atol=1.E-10, h0=1.E-6, hmin=1.E-10, hmax=1.E+10, qmax=5, output=2, params=None):
+def integrate (time, x0, solv, rtol=1.E-6, atol=1.E-10, h0=1.E-6, hmin=1.E-10, hmax=1.E+10, qmax=5, output=2, control=True, params=None):
     """
     Parameters
     --------------------
@@ -169,10 +171,17 @@ def integrate (time, x0, solv, rtol=1.E-6, atol=1.E-10, h0=1.E-6, hmin=1.E-10, h
         Relative tolerance, default 1.E-10.
     h0 : float, optional
         Initial step size, default 1.E-6.
-    hmin, hmax : float, optional
-        Step size bounds, default from 1.E-10 to 1.E+10.
+    hmin : float, optional
+        Minimum step size, default 1.E-10.
+    hmax : float, optional
+        Maximum step size, default 1.E+10.
     qmax : int, optional
         Maximum method order, default 5.
+    control : bool, optional
+        True  - integrate with local error control, 
+                order q and step h depend on atol and rtol [default]
+        False - integrate without local error control, 
+                order q increases from 1 to qmax, step size h is fixed
     params : array-like,
         Extra parameters to 'dynamics'
     output : int, optional
@@ -191,7 +200,7 @@ def integrate (time, x0, solv, rtol=1.E-6, atol=1.E-10, h0=1.E-6, hmin=1.E-10, h
     """
     ivp = IVP (x0)
 
-    solution = ivp.solve (time, solv, rtol, atol, h0, hmin, hmax, qmax, output=output, params=params)
+    solution = ivp.solve (time, solv, rtol, atol, h0, hmin, hmax, qmax, output=output, control=control, params=params)
 
     yield from solution
 

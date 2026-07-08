@@ -7,6 +7,8 @@ module m_ivp
 
     implicit none
 
+    integer, parameter :: IVP_MAX_TRIALS = 20
+
     type, public :: t_ivp
         integer :: status = -1    ! calculations status
         integer :: imethod = 13   ! 13 - Anderson method with 'solv'
@@ -100,7 +102,7 @@ module m_ivp
         this % rtol = 1.D-3
         this % status = 1
         this % imethod = 13 ! Anderson's scheme and solv
-        this % ctrl % qmax = 5
+        this % ctrl % qmax = 5 ! setup to 5th because the 6th order may be unstable
         this % ctrl % hmin = 1.D-10
         this % ctrl % hmax = 1.D+10
     end subroutine p_deft
@@ -176,7 +178,7 @@ module m_ivp
             call erms (this % rank, this % e0, this % x, this % atol, this % rtol, this % lre)
             this % lre = this % lre * FACT (q) / (q + 1)
             ! Check if reject is required
-            if ((this % lre > 1).or.(this % bdf % nonlin % status .ne. 0)) then
+            if (((this % lre > 1).or.(this % bdf % nonlin % status .ne. 0)).and.(this % ctrl % imethod == 2)) then
                 this % i_trials = this % i_trials + 1
                 ! Recall state and setup new step size
                 this % zc = this % z1
@@ -199,7 +201,7 @@ module m_ivp
                 if (q > this % q0) then
                     this % zc (q+1,:) = this % e0 / q
                 endif
-                ! Adjust ZC to the new step h
+                ! Adjust ZC to the new step h and/or order q
                 if (this % ctrl % todo .ne. "o") then
                     call this % bdf % rescale (this % rank, this % zc, this % h0, h)
                 endif
@@ -222,9 +224,9 @@ module m_ivp
 
         this % i_iter = this % i_iter + 1
 
-        if (this % h0 < 0) call error_message ("IVP", "step size is negative")
+        if (this % h0 < this % ctrl % hmin) call error_message ("IVP", "h0 < hmin")
 
-        if (this % i_trials > 20) call error_message ("IVP", "too many trials at one time step")
+        if (this % i_trials > IVP_MAX_TRIALS) call error_message ("IVP", "too many trials at one time step")
 
         if (this % t >= this % t1) then
 

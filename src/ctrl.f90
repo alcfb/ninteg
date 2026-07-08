@@ -4,13 +4,16 @@ module m_ctrl
     ! Build in accordance with LSODE algorithm
 
     use m_parameters
-
     implicit none
+
+    integer, parameter :: CTRL_METHOD_CONSTANT = 1
+    integer, parameter :: CTRL_METHOD_VARIABLE = 2
 
     type, public :: t_ctrl
         integer :: h_hold, q_hold
         real(8) :: hmin, hmax
         integer :: qmax
+        integer :: imethod = CTRL_METHOD_VARIABLE
         character*1 :: todo
     contains
         procedure :: make => p_make
@@ -38,6 +41,27 @@ module m_ctrl
     subroutine p_select (this, q0, h0, rs, ru, rd, q, h)
         ! Select step size
         implicit none
+        class (t_ctrl), intent (inout) :: this
+        integer, intent (in) :: q0
+        real(8), intent (in) :: h0, rs, ru, rd
+        real(8), intent (out):: h
+        integer, intent (out):: q
+
+        if (this % imethod == CTRL_METHOD_VARIABLE) call select_variable (this, q0, h0, rs, ru, rd, q, h)
+
+        if (this % imethod == CTRL_METHOD_CONSTANT) call select_constant (this, q0, h0, q, h)
+
+    end subroutine p_select
+
+    subroutine p_accept (this)
+        implicit none
+        class (t_ctrl), intent (inout) :: this
+        if (this % imethod == CTRL_METHOD_VARIABLE) call hold_on (this)
+    end subroutine p_accept
+
+
+    subroutine select_variable (this, q0, h0, rs, ru, rd, q, h)
+
         class (t_ctrl), intent (inout) :: this
         integer, intent (in) :: q0
         real(8), intent (in) :: h0, rs, ru, rd
@@ -81,9 +105,9 @@ module m_ctrl
         h = max (h, this % hmin)
         q = min (q, this % qmax)
 
-    end subroutine p_select
+    end subroutine select_variable
 
-    subroutine p_accept (this)
+    subroutine hold_on (this)
         implicit none
         class (t_ctrl), intent (inout) :: this
         if ((this % todo == "d").or.(this % todo == "u")) then
@@ -98,7 +122,25 @@ module m_ctrl
             this % h_hold = max (0, this % h_hold - 1)
             this % q_hold = max (0, this % q_hold - 1)
         endif
-    end subroutine p_accept
+    end subroutine hold_on
+
+    subroutine select_constant (this, q0, h0, q, h)
+
+        class (t_ctrl), intent (inout) :: this
+
+        integer, intent (in) :: q0
+        real(8), intent (in) :: h0
+        real(8), intent (out):: h
+        integer, intent (out):: q
+
+        if (q0 < this % qmax) then
+            q = q0 + 1
+            this % todo = 'u'
+        endif
+
+        h = h0
+
+    end subroutine select_constant
 
     subroutine p_free (this)
         implicit none

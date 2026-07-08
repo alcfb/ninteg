@@ -67,6 +67,11 @@ module m_py_ninteg
         ivp % imethod = im
     end subroutine init_im
 
+    subroutine init_ctrl_method (im) bind(c, name='init_ctrl_method')
+        integer(c_int), intent(in) :: im
+        ivp % ctrl % imethod = im
+    end subroutine init_ctrl_method
+
     subroutine init_q_max (q) bind(c, name='init_q_max')
         integer(c_int), intent(in) :: q
         ivp % ctrl % qmax = q
