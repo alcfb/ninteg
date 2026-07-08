@@ -56,17 +56,17 @@ class Point_Kinetics:
 class Thermal_Hydraulics:
 
     a1 = 19.08      # K/s
-    a2 =  0.19      # 1/s
+    a2 =  0.19      # fuel temp. response delay (1/s)
     t0 =  1.63      # bubble transit time (s)
     C0 = -3.65e-4   # 1/K
-    k0 = -0.0037    # feedback gain (K/s)
+    k0 =  1.7       # feedback gain (K/s)
     H0 =  4.        # height (m)
 
     def __init__ (self, rank=3):
         mat = np.zeros ((rank, rank))
         mat [0,0] =-self.a2
         mat [1,2] = 1
-        mat [2,:] = [(6 / self.t0 - self.a2) * self.C0 * self.H0**2 / self.t0, -6 / self.t0, -12 / self.t0**2]
+        mat [2,:] = [self.k0 * (6 / self.t0 - self.a2) * self.C0 * self.H0**2 / self.t0, -6 / self.t0, -12 / self.t0**2]
         self.mat_0 = mat
         self.mat_h = np.zeros ((rank, rank))
         self.mat_e = np.eye(rank)
@@ -92,21 +92,25 @@ def dynamics(h, t, b, x, e, params):
 
 init_state = np.concatenate ((PK.steady(), TH.steady()))
 
-solution = integrate((0, 20), init_state, dynamics, qmax=2, h0=1.E-1, control=False)
+#solution = integrate((0, 60), init_state, dynamics, qmax=2, h0=1.E-2, control=False)
+
+solution = integrate((0, 60), init_state, dynamics, rtol=1.E-3)
+
+pcm = 1.E+5
 
 for t, x, info in solution:
-    print (f"t={t:9.3f}s : h={info.last_step_size:9.3e} s   q={info.last_order:1.0f}   P={x[0]:15.9e} W")
+    print (f"t={t:9.3f}s : h={info.last_step_size:9.3e} s   q={info.last_order:1.0f}   P={x[0]:15.9e} W  RFUE={PK.D0 * x[-3] * pcm:5.1f} [pcm]  RVOI={x[-2]*pcm:5.1f} [pcm]  RTOT={(PK.R0 + PK.D0 * x[-3] + x[-2]) * pcm:5.1f} [pcm]")
 
 # Reference solution
-t_ref = 20
-P_ref = 1.0001544763
-T_ref = 1.549e-02
+t_ref = 60
+P_ref = 9.892487713e-01
+T_ref = 1.105045744e-02
 
 # Output Results
 print(f"""   
           Time: {t:9.3f} (s)
-         Power: {x[0] :9.3e} (-)    dP = {100*(1-x[0] /P_ref):6.1e} %
-   Temperature: {x[-3]:9.3e} (K)    dT = {100*(1-x[-3]/T_ref):6.1e} %
+         Power: {x[0] :19.9e} (-)    dP = {100*(1-x[0] /P_ref):6.1e} %
+   Temperature: {x[-3]:19.9e} (K)    dT = {100*(1-x[-3]/T_ref):6.1e} %
    Total steps: {info.successful_steps:5.0f}
 Rejected steps: {info.rejected_steps:5.0f}
 Function calls: {info.function_calls:5.0f}""")
