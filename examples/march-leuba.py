@@ -94,16 +94,12 @@ init_state = np.concatenate ((PK.steady(), TH.steady()))
 
 solution = integrate((0, 20), init_state, dynamics)
 
-#t_ref = [10, 20, 10] # ?
-#p_ref = [-0.25115159e-01, 0.3530984878e+00, 0.72166432e-03]
-
 for t, x, info in solution: pass
 #    print (f"{t:9.3f}s : {x[0]:15.9e} W")
 
 # Output Results
 print(f"""   
           Time: {t:9.3f} (s)
-     Reference: 1.3530984878e+00 (-)
          Power: {x[0]:15.10e} (-)
    Temperature: {x[-3]:9.3e} (K)
    Total steps: {info.successful_steps:5.0f}
