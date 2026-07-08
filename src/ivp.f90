@@ -19,15 +19,16 @@ module m_ivp
         integer :: i_iter_rejects !
         integer :: i_trials       ! number of trials at a given rejected step
         integer :: n_calls        ! number of calls of function 'solv'
-        real(8) :: t              ! current time
+        real(8) :: t              ! current time - internal BDF
+        real(8) :: tout           ! current time - for output vector xout
         real(8) :: lre            ! local truncation error e = e(t)
-        real(8) :: t0, t1         ! current and previous time point
+        real(8) :: ts, te         ! starting and ending times
         real(8) :: h0, h1         ! current and previous step sizes
         integer :: q0, q1         ! current and previous step orders
         type (t_bdf) :: bdf
         type (t_size) :: size
         type (t_ctrl) :: ctrl
-        real(8), allocatable :: x (:) ! state vector x = x(t)
+        real(8), allocatable :: xout(:)
         real(8), allocatable :: atol(:), rtol(:)
         real(8), allocatable, private :: zc (:,:), z1 (:,:), dz(:), z0(:)
         real(8), allocatable, private :: e0(:), e1(:)
@@ -59,7 +60,7 @@ module m_ivp
 
         this % rank = rank
 
-        allocate (this % x (rank))
+        allocate (this % xout (rank))
         allocate (this % dz (rank))
         allocate (this % z0 (rank))
         allocate (this % e0 (rank))
@@ -90,14 +91,16 @@ module m_ivp
     subroutine p_deft (this)
         implicit none
         class (t_ivp), intent (inout) :: this
-        if (.not. allocated (this % x)) call error_message ("IVP", "arrays are not allocated")
-        this % t0 = 0.D0
+        if (.not. allocated (this % xout)) call error_message ("IVP", "arrays are not allocated")
+        this % ts = 0.D0
+        this % te = 1.D0
+        this % t = 0.D0
         this % h0 = 1.D-4
         this % h1 = this % h0
         this % q0 = 1
         this % q1 = 1
-        this % t1 = 1.D0
-        this % x = 0.D0
+        this % tout = 0.D0
+        this % xout = 0.D0
         this % atol = 1.D-10
         this % rtol = 1.D-3
         this % status = 1
@@ -114,11 +117,12 @@ module m_ivp
         class (t_ivp), intent (inout) :: this
 
         if (this % status < 1)  call error_message ("IVP", "'deft' must be called first")
-        if (this % t0 > this % t1) call error_message ("IVP", "t0 is larger than t1")
+        if (this % ts > this % te) call error_message ("IVP", "ts > te")
 
         this % i_step = 0
         this % status = 2
-        this % t = this % t0
+        this % t = this % ts
+        this % tout = this % ts
         this % i_iter = 0
         this % i_step_rejects = 0
         this % i_iter_rejects = 0
@@ -147,13 +151,15 @@ module m_ivp
 
         if (this % status < 2) call error_message ("IVP","'init' must be called first")
 
+        if (this % t < this % te) then
+
         if (this % i_step == 0) then
             ! Always start with the first order
             this % q0 = 1
             this % zc = 0
             this % e0 = 0
             ! The 1st vector
-            this % zc (1,:) = this % x
+            this % zc (1,:) = this % xout
             this % zc (2,:) = 0.D0 ! <= initial guess
             ! The 2d vector
             !call this % mult (this % rank, this % t, this % x, this % zc (2,:))
@@ -175,7 +181,7 @@ module m_ivp
             this % n_calls = this % n_calls + this % bdf % nonlin % i_mult_iter
             this % n_calls = this % n_calls + this % bdf % nonlin % i_solv_iter
             ! Update local relative error
-            call erms (this % rank, this % e0, this % x, this % atol, this % rtol, this % lre)
+            call erms (this % rank, this % e0, this % z1(1,:), this % atol, this % rtol, this % lre)
             this % lre = this % lre * FACT (q) / (q + 1)
             ! Check if reject is required
             if (((this % lre > 1).or.(this % bdf % nonlin % status .ne. 0)).and.(this % ctrl % imethod == 2)) then
@@ -190,7 +196,7 @@ module m_ivp
                 this % status = 4
             else
                 ! Select time step
-                call this % size % predict (this % rank, q, this % x, this % zc, this % e0, this % e1, this % atol, this % rtol, rs, ru, rd)
+                call this % size % predict (this % rank, q, this % xout, this % zc, this % e0, this % e1, this % atol, this % rtol, rs, ru, rd)
                 call this % ctrl % select (this % q0, this % h0, rs, ru, rd, q, h)
                 ! Save the current time step and order
                 this % z1 = this % zc
@@ -210,7 +216,8 @@ module m_ivp
                 this % h0 = h
                 this % q0 = q
                 this % i_step = this % i_step + 1
-                this % x = this % zc (1,:)
+                this % xout = this % zc (1,:)
+                this % tout = this % t
                 call this % ctrl % accept
                 ! Reset number of trials of rejected step
                 if (this % i_trials > 0) then
@@ -228,34 +235,23 @@ module m_ivp
 
         if (this % i_trials > IVP_MAX_TRIALS) call error_message ("IVP", "too many trials at one time step")
 
-        if (this % t >= this % t1) then
+        endif
+
+        if ((this % t >= this % te).and.(this % status .ne. 4)) then
 
             ! The previous step h1 was too large
             ! Therefore, we must go back in time by h
 
-            h = this % t - this % t1
+            h = this % t - this % te
 
-            ! Rescale vector Zc to -h
-            ! Shift Zc to the requested point t1
-            ! Rescale Zc again to h0
+            ! Update the solution vector X at te
 
-            call this % bdf % rescale (this % rank, this % zc, this % h0, -h)
-            call this % bdf % interpolate (this % rank, this % q0, this % zc)
-            call this % bdf % rescale (this % rank, this % zc, -h, this % h0)
+            call this % bdf % interpolate (this % rank, this % q0, this % h0, this % zc, -h, this % xout)
 
-            ! Update the solution vector X
-
-            this % x(:) = this % zc (1,:)
-
-            ! Update the restart vector Z1
-
-            this % h1 = this % h0 - h
-            this % z1 = this % zc
-            call this % bdf % rescale (this % rank, this % z1, -h, this % h1)
-
-            this % t = this % t1
+            this % tout = this % te
 
             this % status = 5
+
         endif
 
     end subroutine p_next
@@ -264,7 +260,7 @@ module m_ivp
         implicit none
         class (t_ivp), intent (inout) :: this
         if (this % status < 0) call error_message ("IVP", "arrays were not allocated")
-        deallocate (this % x)
+        deallocate (this % xout)
         deallocate (this % z0)
         deallocate (this % dz)
         deallocate (this % e0)

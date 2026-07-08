@@ -8,7 +8,7 @@ module m_size
     contains
         procedure :: make => p_make
         procedure :: predict => p_predict
-        procedure :: correct => p_correct
+!        procedure :: correct => p_correct
         procedure :: free => p_free
     end type t_size
 
@@ -71,19 +71,19 @@ module m_size
 
     end subroutine p_predict
 
-    subroutine p_correct (this, h, time, tend)
-        implicit none
-        class (t_size), intent (inout) :: this
-        real(8), intent (in) :: time, tend
-        real(8), intent (inout) :: h
-        integer :: n
+!    subroutine p_correct (this, h, time, tend)
+!        implicit none
+!        class (t_size), intent (inout) :: this
+!        real(8), intent (in) :: time, tend
+!        real(8), intent (inout) :: h
+!        integer :: n
         ! Check how far we are from the end of time
-        if (time + 20 * h < tend) return
+!        if (time + 20 * h < tend) return
         ! Compute the number of steps by the end
-        n = int ((tend - time)/ h) + 1
+!        n = int ((tend - time)/ h) + 1
         ! Correct to the end time
-        h = (tend - time) / n
-    end subroutine p_correct
+!        h = (tend - time) / n
+!    end subroutine p_correct
 
     subroutine p_free (this)
         implicit none

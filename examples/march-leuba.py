@@ -94,7 +94,9 @@ init_state = np.concatenate ((PK.steady(), TH.steady()))
 
 #solution = integrate((0, 60), init_state, dynamics, qmax=2, h0=1.E-2, control=False)
 
-solution = integrate((0, 60), init_state, dynamics, rtol=1.E-3)
+#solution = integrate(np.linspace(0,60,306), init_state, dynamics, rtol=1.E-6, qmax=6, output=1)
+
+solution = integrate((0, 60), init_state, dynamics, rtol=1.E-6, qmax=6, output=1)
 
 pcm = 1.E+5
 

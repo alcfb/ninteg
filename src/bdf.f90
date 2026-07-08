@@ -119,7 +119,7 @@ module m_bdf
     end subroutine p_next
 
 
-    subroutine p_interpolate (this, n, q, zc)
+    subroutine p_interpolate1 (this, n, q, zc)
 
         implicit none
         class (t_bdf), intent (inout) :: this
@@ -131,6 +131,27 @@ module m_bdf
             do j = i + 1, q + 1
                 zc (i,:) = zc (i,:) + PASCAL (i,j) * zc (j,:)
             enddo
+        enddo
+
+    end subroutine p_interpolate1
+
+
+    subroutine p_interpolate (this, n, q, h0, z0, h1, x1)
+
+        implicit none
+        class (t_bdf), intent (inout) :: this
+        real(8), intent (in) :: z0 (MAX_BDF_ORDER+1, n), h0, h1
+        integer, intent (in) :: q, n
+        real(8), intent (out) :: x1(n)
+        real(8) :: ratio
+        integer :: i
+
+        ratio = h1 / h0
+
+        x1(:) = z0(1,:)
+
+        do i = 2, q + 1
+            x1 (:) = x1 (:) + PASCAL (1,i) * z0 (i,:) * ratio**(i-1)
         enddo
 
     end subroutine p_interpolate

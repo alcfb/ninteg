@@ -21,15 +21,15 @@ module m_py_ninteg
         is_allocated = .true.
     end subroutine make
 
-    subroutine init_t0 (t0) bind(c, name='init_t0')
-        real(c_double), intent(in) :: t0
-        ivp % t0 = t0
-    end subroutine init_t0
+    subroutine init_ts (ts) bind(c, name='init_t0')
+        real(c_double), intent(in) :: ts
+        ivp % ts = ts
+    end subroutine init_ts
 
-    subroutine init_t1 (t1) bind(c, name='init_t1')
-        real(c_double), intent(in) :: t1
-        ivp % t1 = t1
-    end subroutine init_t1
+    subroutine init_te (te) bind(c, name='init_t1')
+        real(c_double), intent(in) :: te
+        ivp % te = te
+    end subroutine init_te
 
     subroutine init_h0 (h0) bind(c, name='init_h0')
         real(c_double), intent(in) :: h0
@@ -39,7 +39,7 @@ module m_py_ninteg
     subroutine init_x0 (n, x) bind(c, name='init_x0')
         integer(c_int), intent(in) :: n
         real(c_double), intent(in) :: x(n)
-        ivp % x(:) = x(:)
+        ivp % xout(:) = x(:)
     end subroutine init_x0
 
     subroutine init_rtol (rtol) bind(c, name='init_rtol')
@@ -99,7 +99,7 @@ module m_py_ninteg
         val ( 6) = real (ivp % n_calls, kind=c_double)
         val ( 7) = real (ivp % q0, kind=c_double)
         val ( 8) = real (ivp % q1, kind=c_double)
-        val ( 9) = ivp % t
+        val ( 9) = ivp % tout
         val (10) = ivp % h0
         val (11) = ivp % h1
         val (12) = ivp % lre
@@ -112,14 +112,14 @@ module m_py_ninteg
 
     subroutine get_t (t) bind(c, name='get_t')
         real (c_double), intent(out) :: t
-        t = ivp % t
+        t = ivp % tout
     end subroutine get_t
 
     subroutine get_x (n, x) bind(c, name='get_x')
         integer (c_int), intent(in) :: n
         real (c_double), intent(out) :: x(n)
-        if (size (ivp % x) /= n) call error_message ('ninteg.f90', 'Size mismatch')
-        x(:) = ivp % x (:)
+        if (size (ivp % xout) /= n) call error_message ('ninteg.f90', 'Size mismatch')
+        x(:) = ivp % xout (:)
     end subroutine get_x
 
     subroutine ivp_init () bind(c, name='ivp_init')
