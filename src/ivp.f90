@@ -172,7 +172,6 @@ module m_ivp
             this % e1 = this % e0
             ! Local error
             this % lre = 1
-            this % i_step = this % i_step + 1
             this % status = 2
         else
             q = this % q0
@@ -215,7 +214,6 @@ module m_ivp
                 this % t = this % t + this % h1
                 this % h0 = h
                 this % q0 = q
-                this % i_step = this % i_step + 1
                 this % xout = this % zc (1,:)
                 this % tout = this % t
                 call this % ctrl % accept
@@ -229,11 +227,9 @@ module m_ivp
             endif
         endif
 
-        this % i_iter = this % i_iter + 1
+            if (this % h0 < this % ctrl % hmin) call error_message ("IVP", "h0 < hmin")
 
-        if (this % h0 < this % ctrl % hmin) call error_message ("IVP", "h0 < hmin")
-
-        if (this % i_trials > IVP_MAX_TRIALS) call error_message ("IVP", "too many trials at one time step")
+            if (this % i_trials > IVP_MAX_TRIALS) call error_message ("IVP", "too many trials at one time step")
 
         endif
 
@@ -253,6 +249,10 @@ module m_ivp
             this % status = 5
 
         endif
+
+        if (this % status .ne. 4) this % i_step = this % i_step + 1
+
+        this % i_iter = this % i_iter + 1
 
     end subroutine p_next
 
