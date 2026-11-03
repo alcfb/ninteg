@@ -4,6 +4,8 @@ import numpy
 import ctypes
 import pathlib
 
+__version__='0.1.00'
+
 c_double   = ctypes.c_double
 c_int      = ctypes.c_int
 c_void_p   = ctypes.c_void_p
